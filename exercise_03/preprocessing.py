@@ -19,6 +19,13 @@ def _remove_html_tags(text: str) -> str:
     return clean_text
 
 
+def _remove_non_printable(text: str) -> str:
+    return "".join(c for c in text if c.isprintable())
+
+
+assert _remove_non_printable("Hello\x00World") == "HelloWorld"
+assert _remove_non_printable("Hello\x09World") == "HelloWorld"
+
 # Tests for _remove_html_tags
 assert _remove_html_tags("This is <b>bold</b> text.") == "This is bold text."
 assert (
@@ -58,37 +65,58 @@ assert _to_lowercase_if_needed("", True) == ""
 assert _to_lowercase_if_needed("With Numbers 123", True) == "with numbers 123"
 
 
-def _replace_numbers_if_needed(text: str, replacement_token: str | None) -> str:
+def _replace_numbers_if_needed(
+    tokens: list[str], replacement_token: str | None
+) -> list[str]:
     """
-    Replaces sequences of digits with a specified token if the token is provided.
+    Replaces tokens that are only numbers with a specified token if the token is provided.
 
     Args:
-        text: The input string.
+        tokens: The input tokens.
         replacement_token: The token to replace numbers with (e.g., "NUMTOKEN").
                            If None, no replacement is done.
 
     Returns:
-        The processed string with numbers potentially replaced.
+        The processed tokens with numbers potentially replaced.
     """
-    if replacement_token is not None:
-        # \d+ matches one or more digits
-        return re.sub(r"\d+", replacement_token, text)
-    return text
+    if replacement_token is None:
+        return tokens
+
+    pattern = r"^[+-]?(\d+(\.\d*)?|\.\d+)$"
+
+    _tokens = []
+    for token in tokens:
+        if re.fullmatch(pattern, token):
+            _tokens.append(replacement_token)
+        else:
+            _tokens.append(token)
+    return _tokens
 
 
 # Tests for _replace_numbers_if_needed
-assert (
-    _replace_numbers_if_needed("Review 123 and 45.", "NUMTOKEN")
-    == "Review NUMTOKEN and NUMTOKEN."
-)
-assert _replace_numbers_if_needed("No numbers here.", "NUMTOKEN") == "No numbers here."
-assert _replace_numbers_if_needed("Review 123 and 45.", None) == "Review 123 and 45."
-assert _replace_numbers_if_needed("123 456", "N") == "N N"
-assert _replace_numbers_if_needed("word123word", "NUMTOKEN") == "wordNUMTOKENword"
-assert _replace_numbers_if_needed("", "NUMTOKEN") == ""
-assert (
-    _replace_numbers_if_needed("Text without numbers.", None) == "Text without numbers."
-)
+assert _replace_numbers_if_needed(["Review", "123", "and", "45", "."], "NUMTOKEN") == [
+    "Review",
+    "NUMTOKEN",
+    "and",
+    "NUMTOKEN",
+    ".",
+]
+assert _replace_numbers_if_needed(["No", "numbers", "here", "."], "NUMTOKEN") == [
+    "No",
+    "numbers",
+    "here",
+    ".",
+]
+assert _replace_numbers_if_needed(["Review", "123", "and", "45", "."], None) == [
+    "Review",
+    "123",
+    "and",
+    "45",
+    ".",
+]
+assert _replace_numbers_if_needed(["123", "456"], "N") == ["N", "N"]
+assert _replace_numbers_if_needed(["word123word"], "NUMTOKEN") == ["word123word"]
+assert _replace_numbers_if_needed([""], "NUMTOKEN") == [""]
 
 
 def _tokenize_text(text: str, tokenize_on_punctuation_flag: bool) -> list[str]:
@@ -303,11 +331,12 @@ assert _filter_tokens_by_set([[]], {"a"}) == [[]]
 
 def preprocess(
     reviews: list[str],
-    tokenize_on_punctuation: bool = False,
+    tokenize_on_punctuation: bool = True,
     to_lowercase: bool = False,
     remove_punctuation_tokens: bool = False,
     high_freq_term_threshold: float | None = None,
     number_replacement_token: str | None = None,
+    remove_non_printable: bool = True,
 ) -> list[list[str]]:
     """
     Pre-processes a list of raw review strings according to specified options.
@@ -331,16 +360,15 @@ def preprocess(
         to_lowercase: If True, convert all text to lowercase. Default is False.
         remove_punctuation_tokens: If True, remove tokens that consist purely
                                    of punctuation characters after tokenization.
-                                   Default is False.
         high_freq_term_threshold: If a float (0.0-1.0), remove terms whose corpus
                                   frequency (count / total tokens in corpus)
                                   exceeds this threshold. If None, no
                                   high-frequency term removal is performed.
-                                  Default is None.
         number_replacement_token: If a string (e.g., "NUMTOKEN"), replace all
                                   sequences of digits with this token. If None,
                                   numbers are not replaced. Default is None.
                                   Should not contain any special characters or spaces.
+        remove_non_printable: If True, remove non-printable characters.
 
     Returns:
         A list of lists of strings, where each inner list contains the
@@ -371,22 +399,24 @@ def preprocess(
     processed_reviews_intermediate: list[list[str]] = []
 
     for review_text in reviews:
-        # 1. HTML Tag Removal (always on)
+        # Remove non-printable characters
+        if remove_non_printable:
+            review_text = _remove_non_printable(review_text)
+
+        # HTML Tag Removal (always on)
         current_text = _remove_html_tags(review_text)
 
-        # 2. Lowercase
+        # Lowercase
         current_text = _to_lowercase_if_needed(current_text, to_lowercase)
 
-        # 3. Number Replacement
-        current_text = _replace_numbers_if_needed(
-            current_text, number_replacement_token
-        )
-
-        # 4. Tokenization
+        # Tokenization
         tokens = _tokenize_text(current_text, tokenize_on_punctuation)
 
-        # 5. Punctuation Token Removal
+        # Punctuation Token Removal
         tokens = _remove_punctuation_tokens_if_needed(tokens, remove_punctuation_tokens)
+
+        # Number Replacement
+        tokens = _replace_numbers_if_needed(tokens, number_replacement_token)
 
         processed_reviews_intermediate.append(tokens)
 
@@ -421,15 +451,19 @@ reviews0 = ["<p>Hello <b>World</b>.</p>", "Test 123! <br/> No tags here."]
 # After HTML removal: ["Hello World.", "Test 123!  No tags here."]
 # Default tokenization: [["Hello", "World."], ["Test", "123!", "No", "tags", "here."]]
 expected0 = [["Hello", "World."], ["Test", "123!", "No", "tags", "here."]]
-assert preprocess(reviews0) == expected0, f"S0 failed: {preprocess(reviews0)}"
+assert preprocess(reviews0, tokenize_on_punctuation=False) == expected0, (
+    f"S0 failed: {preprocess(reviews0, tokenize_on_punctuation=False)}"
+)
 
 # Scenario 1: Basic tokenization (defaults)
 reviews1 = ["Hello World.", "Test 123!"]
 expected1 = [["Hello", "World."], ["Test", "123!"]]
-assert preprocess(reviews1) == expected1, f"S1 failed: {preprocess(reviews1)}"
+assert preprocess(reviews1, tokenize_on_punctuation=False) == expected1, (
+    f"S1 failed: {preprocess(reviews1, tokenize_on_punctuation=False)}"
+)
 
 # Scenario 2: Lowercase and number replacement
-expected2 = [["hello", "world."], ["test", "NUMTOKEN!"]]
+expected2 = [["hello", "world", "."], ["test", "NUMTOKEN", "!"]]
 assert (
     preprocess(reviews1, to_lowercase=True, number_replacement_token="NUMTOKEN")
     == expected2
