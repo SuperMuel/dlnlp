@@ -16,13 +16,15 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "scikit-learn>=1.6.1",
     "scipy>=1.13.1",
+    "seaborn>=0.13.2",
     "tokenizers>=0.21.1",
     "torch>=2.7.0",
     "torchvision>=0.22.0",
     "tqdm>=4.67.1",
+    "transformers>=4.53.2",
     "wordcloud>=1.9.4",
 ]
 
 
 [tool.ruff]
-per-file-ignores = { "*.ipynb" = ["F811"] }
+per-file-ignores = { "*.ipynb" = ["F811", "F401"] }
