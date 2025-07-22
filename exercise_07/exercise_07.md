@@ -44,10 +44,15 @@ Both transform the input through residual connections (C.1.2 & C.2.2)
     *Figure 2: Self-attention mechanism to Masked multi-head attention. (a) Self-attention mechanism. (b) Multi-head attention without a mask. (c) Masked multi-head attention (C.1.1). These images were taken from Chapter 5 (lecture slides).*
 
     **C.1.1** In Exercise #6, we developed a model that used a self-attention mechanism.
+
     i) Be sure to remove the extra layer added after the self-attention mechanism in Exercise #6.
+
     ii) As depicted in Fig. 2 (b), we have to modify the self-attention mechanism in order to have *n*<sub>heads</sub>.
+
     iii) Their output (the output of the *n*<sub>heads</sub>) should be concatenated.
+
     iv) The concatenated output should be passed as input to a dense layer.
+
     v) Finally, we have to add an option of masking the scaled dot-product (see Fig. 2 (c)).
 
     **C.1.2** After implementing the multi-head attention, we have to implement a residual connection [2] followed by a normalization layer, see Fig. 1.
@@ -57,6 +62,7 @@ Both transform the input through residual connections (C.1.2 & C.2.2)
     *Figure 3: Second component of the encoder block. Image based on the diagram presented on Chapter 6 (lecture slides).*
 
     **C.2.1** We need to implement C.2.1, which receives as input the output of C.1 into a point-wise-feed forward network. This small feed-forward network is composed of two linear transformations with a ReLU [1] activation in between.
+
     **C.2.2** After implementing C.2.1, we have to implement a residual connection [2] and a normalization layer following the same architecture of C.1.2, but instead of receiving the original X, it is going to receive the output of C.1 (X').
 
 3.  Once we have implemented the encoder block, you need to think if an extra layer(s) to classify the reviews into positive or negative sentiments is needed. In case that an additional layer(s) is/are needed, implement it/them. **Tip:** read Chapter 6 - The prediction layer (lecture slides).
